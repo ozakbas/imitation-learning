@@ -8,6 +8,7 @@ __pycache__/
 *.pyd
 
 # Local data
+results
 *.csv
 *.mp4
 
