@@ -96,23 +96,20 @@ def record_movements(recording_id):
             # capture video frame exactly once per sample
             video_handler.capture_frame()  # one frame per call at VIDEO_FPS
 
-            # Read servo positions and store relative to rest position
             current_positions = [servo_handler.read_position(sid) for sid in cfg.SERVO_IDS]
-            relative_positions = []
-            for sid, pos in zip(cfg.SERVO_IDS, current_positions):
+
+            # 2. Prepare positions for saving (handle failed reads)
+            absolute_positions_to_save = []
+            for pos in current_positions:
                 if pos is None or pos == -1:
-                    relative_positions.append(0)
+                    absolute_positions_to_save.append("")  # Store empty string for missing data
                 else:
-                    relative_positions.append(
-                        servo_handler.circular_diff(pos, rest_positions[sid])
-                    )
+                    absolute_positions_to_save.append(pos)
 
-            # timestamp is exactly k * SAMPLE_DT
             t_rec = k * SAMPLE_DT
-            movement_data.append([f"{t_rec:.4f}"] + relative_positions)
+            movement_data.append([f"{t_rec:.4f}"] + absolute_positions_to_save)
 
-            print(f"⏳ Time: {t_rec:5.2f}s | Rel: {relative_positions}")
-
+            print(f"Time: {t_rec:5.2f}s | Abs: {absolute_positions_to_save}")
 
         # save data 
         with open(csv_filepath, 'w', newline='') as file:
@@ -221,47 +218,40 @@ def replay_movements(csv_filename):
         return_to_rest_position(servo_handler, rest_positions)
 
         print("\nStarting replay...")
-
-        # set monotonic zero AFTER user confirmation so timing is correct
+        
         global t0
         t0 = time.monotonic()
 
+        FRAME_TOL = cfg.SAMPLING_INTERVAL * 0.5
 
-        FRAME_TOL = cfg.SAMPLING_INTERVAL * 0.5  # allow small timing jitter
         for row in movement_data:
             try:
                 recorded_time = float(row[0])
             except Exception:
-                continue  # skip bad row
+                continue  # Skip bad row
 
-            rel = []
+            absolute_positions = []
             for s in row[1:]:
                 s = (s or "").strip()
-                if s == "" or s.lower() == "none":
-                    rel.append(None)
+                if s == "":
+                    absolute_positions.append(None)
                 else:
                     try:
-                        rel.append(int(float(s)))
-                    except Exception:
-                        rel.append(None)
+                        # Using float() first makes it robust to values like "123.0"
+                        absolute_positions.append(int(float(s)))
+                    except (ValueError, TypeError):
+                        absolute_positions.append(None)
 
-            # precise timing: wait until this sample’s recorded timestamp
+            # Precise timing: wait until this sample’s recorded timestamp
             sleep_until(recorded_time)
 
-            # if we're late by more than half a sample, skip moving (catch up)
+            # If we're late by more than half a sample, skip moving
             lag = (time.monotonic() - t0) - recorded_time
             if lag > (cfg.SAMPLING_INTERVAL + FRAME_TOL):
                 continue
-
-            # move servos (absolute = rest position + relative)
-            abs_positions = [
-                (rest_positions[sid] + r) if r is not None else None
-                for sid, r in zip(cfg.SERVO_IDS, rel)
-            ]
-            abs_positions = [None if p is None else (p % 4096) for p in abs_positions]
-
-            print(f"t={recorded_time:5.2f}s  abs={abs_positions}")
-            for sid, pos in zip(cfg.SERVO_IDS, abs_positions):
+            
+            print(f"t={recorded_time:5.2f}s  abs={absolute_positions}")
+            for sid, pos in zip(cfg.SERVO_IDS, absolute_positions):
                 if pos is not None:
                     servo_handler.move_servo(sid, pos)
 
