@@ -31,32 +31,40 @@ class ServoHandler:
         """Generic function to execute a read or write command."""
         if not self.is_port_open:
             print("⚠️ Port is not open. Cannot send command.")
-            return None
+            return (None, None, None) if not write else (None, None)
+
+        # Use a variable to store the read value, default to None
+        read_value = None
 
         if write:
             if size == 1:
                 result, error = self.packetHandler.write1ByteTxRx(self.portHandler, servo_id, addr, value)
             elif size == 2:
                 result, error = self.packetHandler.write2ByteTxRx(self.portHandler, servo_id, addr, value)
-            elif size == 4: 
+            elif size == 4:
                 result, error = self.packetHandler.write4ByteTxRx(self.portHandler, servo_id, addr, value)
+            else:
+                print(f"Error: Invalid write size {size}")
+                return None, None
         else: # read
             if size == 1:
-                value, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, servo_id, addr)
+                read_value, result, error = self.packetHandler.read1ByteTxRx(self.portHandler, servo_id, addr)
             elif size == 2:
-                value, result, error = self.packetHandler.read2ByteTxRx(self.portHandler, servo_id, addr)
-            else: # read 4 bytes for position
-                value, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, servo_id, addr)
+                read_value, result, error = self.packetHandler.read2ByteTxRx(self.portHandler, servo_id, addr)
+            elif size == 4:
+                read_value, result, error = self.packetHandler.read4ByteTxRx(self.portHandler, servo_id, addr)
+            else:
+                print(f"Error: Invalid read size {size}")
+                return None, None, None
 
-
-        if result != scs.COMM_SUCCESS:
-            print(f"Servo {servo_id} communication error: {self.packetHandler.getTxRxResult(result)}")
-            return None
+        if result != 0:
+            print(f"Servo {servo_id} comm error: {self.packetHandler.getTxRxResult(result)}")
         if error != 0:
             print(f"Servo {servo_id} packet error: {self.packetHandler.getRxPacketError(error)}")
 
-        return value if not write else True
-
+        # Return the correct tuple of values based on the operation
+        return (read_value, result, error) if not write else (result, error)
+    
     def set_torque(self, servo_id, enable):
         """Enables or disables torque on a servo."""
         state = "enabled" if enable else "disabled"
@@ -65,9 +73,17 @@ class ServoHandler:
 
     def read_position(self, servo_id):
         """Reads the current position of a servo."""
-        raw_position = self._execute_servo_command(servo_id, ADDR_PRESENT_POSITION, None, size=4, write=False)
-        return raw_position if raw_position is not None else -1
+        # Change size to 2 and properly unpack the returned values
+        raw_position, result, error = self._execute_servo_command(
+            servo_id, ADDR_PRESENT_POSITION, None, size=2, write=False
+        )
 
+        # Check if the read was successful before returning the value
+        if result == 0 and raw_position is not None:
+            return raw_position
+        else:
+            return -1 # Return -1 on failure
+        
     def move_servo(self, servo_id, position, speed=800, acc=50):
         """Moves a servo to a specific position with given speed and acceleration."""
         self._execute_servo_command(servo_id, ADDR_GOAL_ACC, acc, size=1)

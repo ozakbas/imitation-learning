@@ -65,67 +65,79 @@ def main():
         for servo_id in SERVO_IDS:
             servo_handler.set_torque(servo_id, True)
         
-        input("\nPress Enter to start the inference loop...")
-        print("Starting inference loop. Press Ctrl+C to stop.")
+        input("\nPress Enter to start the inference loops")
+        print("Starting inference. Press Ctrl+C to stop early.")
         
-        while True:
-            loop_start_time = time.time()
 
-            # Get current joint positions (qpos)
-            current_positions = [servo_handler.read_position(sid) for sid in SERVO_IDS]
+
+
+        # match the training episode duration in prediction
+        n_chunks_to_predict = int(RECORDING_DURATION / (CHUNK_SIZE * SAMPLING_INTERVAL))
+
+        # give it double time 
+        n_chunks_to_predict *= 2
+
+        for loop_num in range(n_chunks_to_predict):
+
+            print(f"\n--- Starting Prediction Loop {loop_num + 1}/3 ---")
+            
+            # --- Get current state (qpos and image) ---
+            current_positions = [servo_handler.read_position(sid) 
+            for sid in SERVO_IDS]
             if any(p is None or p == -1 for p in current_positions):
-                print("Warning: Failed to read one or more servo positions. Skipping step.")
+                print("Warning: Failed to read one or more servo positions. Skipping.")
                 time.sleep(SAMPLING_INTERVAL)
                 continue
             
             qpos_raw = torch.tensor(current_positions, dtype=torch.float32)
             
-            # Get current camera image
             ret, frame = cap.read()
             if not ret:
-                print("Warning: Failed to capture frame. Skipping step.")
+                print("Warning: Failed to capture frame. Skipping.")
                 time.sleep(SAMPLING_INTERVAL)
                 continue
 
             qpos_normalized = _normalize(qpos_raw).to(DEVICE)
             
-            # Process image to get features
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             pil_image = Image.fromarray(frame_rgb)
             image_tensor = transform(pil_image).unsqueeze(0).to(DEVICE)
             with torch.no_grad():
                 image_features = torch.flatten(feature_extractor(image_tensor), 1)
 
-            # Add batch dimension (1) to inputs
             qpos_input = qpos_normalized.unsqueeze(0)
             
             predicted_actions_normalized = model.act(image_features, qpos_input)
 
+            # --- De-normalize the entire action chunk ---
+            action_chunk_normalized = predicted_actions_normalized[0]
+            action_chunk_to_execute = _denormalize(action_chunk_normalized)
+            
+            print(f"--- Received new 5-second plan ({len(action_chunk_to_execute)} steps) ---")
+            
+        
+            # --- Execute the entire chunk of actions, one by one ---
+            for i, action_step in enumerate(action_chunk_to_execute):
+                step_start_time = time.time()
+                
+                for sid, pos in zip(SERVO_IDS, action_step):
+                    servo_handler.move_servo(sid, pos.item())
+                
+                print(f"Step {i+1}/{len(action_chunk_to_execute)} | Start Pos: {qpos_raw.numpy()} | Target: {action_step.cpu().numpy()}")
 
-            # Get the first action from the predicted chunk
-            first_action_normalized = predicted_actions_normalized[0, 0, :]
-            
-            # De-normalize the action to servo values
-            action_to_execute = _denormalize(first_action_normalized)
-            
-            print(f"Current Pos: {qpos_raw.numpy()} | Predicted Action: {action_to_execute.cpu().numpy()}")
-            
-            # Send the command to the servos
-            for sid, pos in zip(SERVO_IDS, action_to_execute):
-                servo_handler.move_servo(sid, pos.item())
+                elapsed_time = time.time() - step_start_time
+                sleep_time = SAMPLING_INTERVAL - elapsed_time
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
 
-            # Maintain a consistent loop frequency matching the recording interval
-            elapsed_time = time.time() - loop_start_time
-            sleep_time = SAMPLING_INTERVAL - elapsed_time
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            print(f"--- Action chunk {loop_num + 1} execution finished. ---")
 
     except KeyboardInterrupt:
         print("\nInference loop stopped by user.")
     except Exception as e:
         print(f"\nAn error occurred: {e}")
     finally:
-        print("Cleaning up: disabling torque and disconnecting...")
+        print("\nCleaning up: disabling torque and disconnecting...")
         if servo_handler.is_port_open:
             for servo_id in SERVO_IDS:
                 servo_handler.set_torque(servo_id, False)
@@ -133,6 +145,5 @@ def main():
         cap.release()
         cv2.destroyAllWindows()
         print("Cleanup complete.")
-
 if __name__ == "__main__":
     main()

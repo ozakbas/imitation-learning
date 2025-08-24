@@ -37,6 +37,43 @@ def _load_or_create_rest_positions(servo_handler, rest_pos_filepath):
     return rest_positions
 
 
+def return_to_rest_position(servo_handler, rest_positions, steps: int = 50, step_delay: float = 0.03):
+    """
+    Move all servos to their REST absolute positions using only 'steps' linear interpolation.
+    """
+    print("\nReturning to the rest position")
+
+    # Ensure torque is ON
+    for sid in cfg.SERVO_IDS:
+        servo_handler.set_torque(sid, True)
+
+    # Read current positions
+    current = []
+    for sid in cfg.SERVO_IDS:
+        pos = servo_handler.read_position(sid)
+        current.append(0 if pos is None else (pos % 4096))
+
+    # Shortest circular delta on 0..4095 ring
+    def circ_delta(target, curr, max_val=4096):
+        d = (target - curr) % max_val
+        if d > max_val / 2:
+            d -= max_val
+        return d
+
+    deltas = [circ_delta(rest_positions[sid] % 4096, curr) for sid, curr in zip(cfg.SERVO_IDS, current)]
+
+    # Interpolate in 'steps'
+    for i in range(1, steps + 1):
+        alpha = i / steps
+        targets = [ (curr + int(round(d * alpha))) % 4096 for curr, d in zip(current, deltas) ]
+        for sid, pos in zip(cfg.SERVO_IDS, targets):
+            servo_handler.move_servo(sid, pos)
+        if step_delay > 0:
+            time.sleep(step_delay)
+
+    print("Reached rest positions smoothly.")
+
+
 def record_movements(recording_id):
     """
     Records servo movements and video for a specified duration with deterministic sampling.
@@ -76,13 +113,14 @@ def record_movements(recording_id):
                 pass
 
         rest_positions = _load_or_create_rest_positions(servo_handler, rest_pos_filepath)
-
+        return_to_rest_position(servo_handler, rest_positions)
+        
         print("\nDisabling torque for manual movement...")
         for servo_id in cfg.SERVO_IDS:
             servo_handler.set_torque(servo_id, False)
 
         input(f"\nPress Enter to start recording for {DURATION:.1f} seconds...")
-        print("\n🎬 Recording started...")
+        print("\nRecording started...")
 
         t0 = time.monotonic()
         movement_data = []
@@ -124,6 +162,7 @@ def record_movements(recording_id):
         print(f"\n An error occurred: {e}")
     finally:
         print("\nCleaning up...")
+        return_to_rest_position(servo_handler, rest_positions)
         # Leave torque disabled so user can reposition if needed
         for servo_id in cfg.SERVO_IDS:
             servo_handler.set_torque(servo_id, False)
@@ -137,43 +176,6 @@ def sleep_until(t_rec):
     dt = target - now
     if dt > 0:
         time.sleep(dt)
-
-
-def return_to_rest_position(servo_handler, rest_positions, steps: int = 100, step_delay: float = 0.02):
-    """
-    Move all servos to their REST absolute positions using only 'steps' linear interpolation.
-    """
-    print("\nReturning to the rest position")
-
-    # Ensure torque is ON
-    for sid in cfg.SERVO_IDS:
-        servo_handler.set_torque(sid, True)
-
-    # Read current positions
-    current = []
-    for sid in cfg.SERVO_IDS:
-        pos = servo_handler.read_position(sid)
-        current.append(0 if pos is None else (pos % 4096))
-
-    # Shortest circular delta on 0..4095 ring
-    def circ_delta(target, curr, max_val=4096):
-        d = (target - curr) % max_val
-        if d > max_val / 2:
-            d -= max_val
-        return d
-
-    deltas = [circ_delta(rest_positions[sid] % 4096, curr) for sid, curr in zip(cfg.SERVO_IDS, current)]
-
-    # Interpolate in 'steps'
-    for i in range(1, steps + 1):
-        alpha = i / steps
-        targets = [ (curr + int(round(d * alpha))) % 4096 for curr, d in zip(current, deltas) ]
-        for sid, pos in zip(cfg.SERVO_IDS, targets):
-            servo_handler.move_servo(sid, pos)
-        if step_delay > 0:
-            time.sleep(step_delay)
-
-    print("Reached rest positions smoothly.")
 
 
 def list_recordings():

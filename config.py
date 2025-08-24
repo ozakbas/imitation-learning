@@ -16,7 +16,7 @@ ADDR_MIDPOINT_OFFSET = 20
 
 # -- Recording & Replay Settings --
 RECORDING_DURATION = 10 
-SAMPLING_INTERVAL = 0.1 
+SAMPLING_INTERVAL = 0.05 
 VIDEO_FPS = round(1.0 / SAMPLING_INTERVAL)
 RECORDINGS_FOLDER = "data/recordings" 
 REST_POSITIONS_FILENAME = "rest_positions.json"
@@ -30,12 +30,12 @@ VIDEO_FRAME_HEIGHT = 480
 
 
 # -- Training Hyperparameters --
-NUM_EPOCHS = 10                 
-BATCH_SIZE = 8
-LEARNING_RATE = 1e-5
+NUM_EPOCHS = 200                 
+BATCH_SIZE = 128
+LEARNING_RATE = 5e-5
 
 # -- Model Architecture Hyperparameters --
-CHUNK_SIZE = 10                 # Number of actions predicted in a chunk (k)
+CHUNK_SIZE = 20                 # Number of actions predicted in a chunk (k)
 ACTION_DIM = 6                  # Dimension of the robot's action space 
 HIDDEN_DIM = 512                # Main hidden dimension for the Transformer
 LATENT_DIM = 32                 # Dimension of the VAE's latent variable z 

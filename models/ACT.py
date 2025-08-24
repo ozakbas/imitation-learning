@@ -3,7 +3,7 @@
 
 import torch
 import torch.nn as nn
-from config import HIDDEN_DIM, LATENT_DIM, CHUNK_SIZE, ACTION_DIM
+from config import HIDDEN_DIM, LATENT_DIM, CHUNK_SIZE, ACTION_DIM, N_HEADS,DIM_FEEDFORWARD, DROPOUT, N_ENCODER_LAYERS, N_DECODER_LAYERS
 
 # Training: CVAEencoder + CVAEDecoder (PolicyEncoder and PolicyDecoder)
 # Testing: CVAEDecoder (PolicyEncoder and PolicyDecoder)
@@ -55,8 +55,12 @@ class PolicyEncoder(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        encoder_layer = nn.TransformerEncoderLayer(d_model=HIDDEN_DIM, nhead=8, batch_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=4)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=HIDDEN_DIM,
+                                                    dim_feedforward=DIM_FEEDFORWARD, 
+                                                    dropout=DROPOUT,
+                                                    nhead=N_HEADS, 
+                                                    batch_first=True)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=N_ENCODER_LAYERS)
 
     def forward(self, src):
         return self.transformer_encoder(src)
@@ -73,8 +77,12 @@ class PolicyDecoder(nn.Module):
     """
     def __init__(self):
         super().__init__()
-        decoder_layer = nn.TransformerDecoderLayer(d_model=HIDDEN_DIM, nhead=8, batch_first=True)
-        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=4)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=HIDDEN_DIM,
+                                                    nhead=N_HEADS,
+                                                    dim_feedforward=DIM_FEEDFORWARD, 
+                                                    dropout=DROPOUT,             
+                                                    batch_first=True)
+        self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=N_DECODER_LAYERS)
         self.decoder_pos_embed = nn.Parameter(torch.randn(1, CHUNK_SIZE, HIDDEN_DIM))
         self.action_head = nn.Linear(HIDDEN_DIM, ACTION_DIM)
 

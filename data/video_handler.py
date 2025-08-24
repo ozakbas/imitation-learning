@@ -31,7 +31,7 @@ class VideoHandler:
             raise IOError("❌ Cannot open VideoWriter.")
 
         self.is_recording = True
-        print(f"📹 Started video recording @ {out_fps} FPS. Saving to {self.filepath}")
+        print(f"Started video recording @ {out_fps} FPS. Saving to {self.filepath}")
 
     def capture_frame(self):
         """
@@ -41,6 +41,7 @@ class VideoHandler:
           - If it fails → duplicate the last valid frame.
         """
         if not self.is_recording or self.cap is None or self.writer is None:
+            print("Something is wrong with the camera: self.is_recording {self.is_recording} self.cap {self.cap}  self.writer {self.writer}")
             return
 
         ret, frame = self.cap.read()
@@ -49,12 +50,16 @@ class VideoHandler:
             self.last_frame = resized_frame
             self.writer.write(resized_frame)
             cv2.imshow('Recording...', resized_frame)
+            cv2.waitKey(1) # gui fix to show camera footage while recording
             return
+        else:
+            print(ret, frame)
 
         # Fallback: duplicate the last known good frame
         if self.last_frame is not None:
             self.writer.write(self.last_frame)
             cv2.imshow('Recording...', self.last_frame)
+            cv2.waitKey(1)
 
     def stop_recording(self):
         """Stops recording and releases all resources."""
@@ -67,4 +72,4 @@ class VideoHandler:
                 self.writer.release()
                 self.writer = None
             cv2.destroyAllWindows()
-            print("🛑 Video recording stopped.")
+            print("Video recording stopped.")

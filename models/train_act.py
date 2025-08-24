@@ -113,8 +113,8 @@ class ACTDataset(Dataset):
         # --- Pre-calculate indices for __getitem__ ---
         self.indices = []
         for traj_idx, traj in enumerate(self.trajectories):
-            # Assuming 100 lines/frames per file
-            num_frames = 100 
+            # lines/frames per file
+            num_frames = int(RECORDING_DURATION / SAMPLING_INTERVAL)
             # We can create a sample starting from any frame that has enough future frames
             # to form a complete action chunk.
             for start_frame in range(num_frames - self.chunk_size):
