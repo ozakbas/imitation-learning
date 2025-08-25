@@ -41,7 +41,7 @@ class VideoHandler:
           - If it fails → duplicate the last valid frame.
         """
         if not self.is_recording or self.cap is None or self.writer is None:
-            print("Something is wrong with the camera: self.is_recording {self.is_recording} self.cap {self.cap}  self.writer {self.writer}")
+            print(f"Something is wrong with the camera: self.is_recording {self.is_recording} self.cap {self.cap}  self.writer {self.writer}")
             return
 
         ret, frame = self.cap.read()

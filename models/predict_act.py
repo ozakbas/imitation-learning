@@ -79,7 +79,7 @@ def main():
 
         for loop_num in range(n_chunks_to_predict):
 
-            print(f"\n--- Starting Prediction Loop {loop_num + 1}/3 ---")
+            print(f"\n--- Starting Prediction Loop {loop_num + 1}/{n_chunks_to_predict}---")
             
             # --- Get current state (qpos and image) ---
             current_positions = [servo_handler.read_position(sid) 
@@ -113,7 +113,7 @@ def main():
             action_chunk_normalized = predicted_actions_normalized[0]
             action_chunk_to_execute = _denormalize(action_chunk_normalized)
             
-            print(f"--- Received new 5-second plan ({len(action_chunk_to_execute)} steps) ---")
+            print(f"--- Received new plan ({len(action_chunk_to_execute)} steps) ---")
             
         
             # --- Execute the entire chunk of actions, one by one ---
