@@ -57,9 +57,7 @@ You can optionally replay a recording to check for any problems before running t
 ```bash
 python3 data/play.py
 ```
-
-Now, train the model on your recorded and preprocessed data.
-
+### 2. Train the model
 ```bash
 python3 models/train_act.py
 ```
@@ -69,7 +67,7 @@ Train the model for the number of epochs specified in config.py.
 Save the best model weights to results/best_model_weights.pth.
 Generate a training/validation loss plot at results/loss_plot.png.
 
-Run Inference on the Robot
+### 3. Run Inference on the Robot
 Deploy the trained policy on your robot. The script loads the best weights and performs real-time.
 
 ```bash
@@ -78,7 +76,6 @@ python3 models/predict_act.py
 Place the robot in its starting position. The robot will attempt to perform the task based on what it learned from your demonstrations.
 
 # Notes
-
 - The hyperparameters used in this project are based on the tuning tips from the authors. You can review their document here: [Google Docs Link](https://docs.google.com/document/d/1FVIZfoALXg_ZkYKaYVh-qOlaXveq5CtvJHXkY25eYhs/edit?usp=sharing)
 
 
